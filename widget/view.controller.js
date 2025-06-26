@@ -190,7 +190,7 @@
 
         function setConnectorConfiguration(){
             if($scope.config.selectedConfig){
-                $scope.selectedEnv.fazConnectorConfig = $scope.selectedEnv.fazConnectorConfig;
+                $scope.selectedEnv.fazConnectorConfig = $scope.config.selectedConfig;
                 checkFAZConnectoHealth();
             }
         }
