@@ -44,7 +44,7 @@
         $scope.nextNotification = nextNotification;
         $scope.setConnectorType = setConnectorType;
         $scope.setConnectorConfiguration = setConnectorConfiguration;
-        $scope.checkFAZConnectoHealth = checkFAZConnectoHealth;
+        $scope.checkFAZConnectorHealth = checkFAZConnectorHealth;
         $scope.isLightTheme = $rootScope.theme.id === 'light';
         $scope.widgetBasePath = widgetBasePath;
         $scope.startInfoGraphics = $scope.isLightTheme ? widgetBasePath + 'images/start-light.svg' : widgetBasePath + 'images/start-dark.svg';
@@ -191,17 +191,21 @@
         function setConnectorConfiguration(){
             if($scope.config.selectedConfig){
                 $scope.selectedEnv.fazConnectorConfig = $scope.config.selectedConfig;
-                checkFAZConnectoHealth();
+                checkFAZConnectorHealth();
             }
         }
 
-        function checkFAZConnectoHealth() {
+        function checkFAZConnectorHealth() {
             $scope.healthCheckProcessing = true;
             let connectorMetaData = {
                 'name': fazConnector.name,
                 'version': fazConnector.version
             }
-            connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id).then(function (connectorHealth) {
+            let agentId;
+            if ($scope.config.connectorType === 'Agent'){
+                agentId = $scope.config.selectedConfig.agent;
+            }
+            connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id, agentId).then(function (connectorHealth) {
                 $scope.config.fazConnectorHealth = connectorHealth;
             }, function (error) {
                 console.log(error);
