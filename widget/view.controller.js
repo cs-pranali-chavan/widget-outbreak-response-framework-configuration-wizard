@@ -42,6 +42,9 @@
         $scope.toggleParametersSettings = { open: false };
         $scope.backNotification = backNotification;
         $scope.nextNotification = nextNotification;
+        $scope.setConnectorType = setConnectorType;
+        $scope.setConnectorConfiguration = setConnectorConfiguration;
+        $scope.checkFAZConnectoHealth = checkFAZConnectoHealth;
         $scope.isLightTheme = $rootScope.theme.id === 'light';
         $scope.widgetBasePath = widgetBasePath;
         $scope.startInfoGraphics = $scope.isLightTheme ? widgetBasePath + 'images/start-light.svg' : widgetBasePath + 'images/start-dark.svg';
@@ -54,6 +57,9 @@
         $scope.params = { activeTab: 0 };
         $scope.noDefaultConnectorSelected = false;
         $scope.config = config;
+        $scope.connectorTypeList = ['Self', 'Agent'];
+        $scope.config.connectorType = 'Self';
+        $scope.allConfigurations = [];
         const nistConnectorName = 'NIST National Vulnerability Database';
         $scope.ingestionDetails = {
             "name": "Outbreak-Alerts",
@@ -87,6 +93,7 @@
 
         $scope.parent_wf_id = '';
         var subscription;
+        var fazConnector;
 
         $scope.$on('websocket:reconnect', function () {
             initWebsocket();
@@ -154,6 +161,56 @@
             }
         }
 
+        //update connector Configuration list as per connector type
+        function setConnectorType() {
+            $scope.allConfigurations = [];
+            const _connectorName = fazConnector.name;
+            const _connectorVersion = fazConnector.version;
+            if ($scope.config.connectorType === 'Self') {
+                connectorService.getConnector(_connectorName, _connectorVersion).then(function (connectorDetails) {
+                    $scope.allConfigurations.push(...connectorDetails.configuration);
+                });
+            }
+            else {
+                let connectorInfo = {
+                    name: _connectorName,
+                    version: _connectorVersion
+                }
+                connectorService.getAgents(connectorInfo).then(function (agentDetails) { //check and fetch agent
+                    if (agentDetails && agentDetails.length > 0) {
+                        agentDetails.forEach(agentElement => {
+                            connectorService.getConnector(_connectorName, _connectorVersion, agentElement.agent).then(function (connectorDetails) { //check and fetch agent
+                                $scope.allConfigurations.push(...connectorDetails.configuration);
+                            });
+                        });
+                    }
+                });
+            }
+        }
+
+        function setConnectorConfiguration(){
+            if($scope.config.selectedConfig){
+                $scope.selectedEnv.fazConnectorConfig = $scope.selectedEnv.fazConnectorConfig;
+                checkFAZConnectoHealth();
+            }
+        }
+
+        function checkFAZConnectoHealth() {
+            $scope.healthCheckProcessing = true;
+            let connectorMetaData = {
+                'name': fazConnector.name,
+                'version': fazConnector.version
+            }
+            connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id).then(function (connectorHealth) {
+                $scope.config.fazConnectorHealth = connectorHealth;
+            }, function (error) {
+                console.log(error);
+                return;
+            }).finally(function () {
+                $scope.healthCheckProcessing = false;
+            })
+        }
+
         function _activeErrorTab(tabName, tabIndex) {
             $scope.params.activeTab = CommonUtils.isUndefined(tabIndex) ? 0 : tabIndex;
             if (CommonUtils.getObjectLength($scope.huntparams) === 0) {
@@ -180,6 +237,7 @@
         async function configHuntTool() {
             $scope.isConnectorsInstalled = true;
             $scope.selectedConnectorName = nistConnectorName;
+            $scope.toggleSelectConfiguration = { open: false };
             const queryBody = {
                 logic: "AND",
                 filters: [{
@@ -211,6 +269,10 @@
                         }
                         $scope.isConnectorsInstalled = false;
                         WizardHandler.wizard('OutbreaksolutionpackWizard').next();
+                    }
+                    fazConnector = _.find($scope.installedConnectors,{label  : 'Fortinet FortiAnalyzer'});
+                    if(fazConnector){
+                        setConnectorType();
                     }
                 } else {
                     toaster.error({ body: 'Threat Hunt Tool parameters is not found in Key-Store' });
@@ -386,6 +448,15 @@
         }
 
         function nextNotification(threatHuntConfigForm) {
+            if(threatHuntConfigForm.selectConfigForm && (threatHuntConfigForm.selectConfigForm.$invalid || threatHuntConfigForm.selectConfigForm.$pristine)){
+                toaster.error({
+                    body: 'Select atleast one configuration for Fortinet FortiAnalyzer'
+                });
+                var huntToolIndex = $scope.selectedEnv.huntTools.indexOf('Fortinet FortiAnalyzer');
+                _activeErrorTab('Fortinet FortiAnalyzer', huntToolIndex);
+                loadActiveTab(huntToolIndex);
+                $scope.toggleSelectConfiguration.open = true;
+            }
             if (!CommonUtils.isUndefined(threatHuntConfigForm.fazForm) && threatHuntConfigForm.fazForm.$invalid) {
                 _connectorErrorHandling('Fortinet FortiAnalyzer');
                 return;
@@ -438,7 +509,6 @@
                     });
                     return;
                 }
-                $scope.selectedEnv.fazConnectorConfig = _.find($scope.installedConnectors, { label: 'Fortinet FortiAnalyzer' });
                 if (CommonUtils.isUndefined($scope.selectedEnv.autoInstallOutbreaks)) {
                     $scope.selectedEnv.autoInstallOutbreaks = {
                         installSelectedOutbreaks: true,
@@ -447,6 +517,13 @@
                     };
                 } else {
                     $scope.selectedEnv.autoInstallOutbreaks.installOutbreakType = $scope.outbreakAlertSeverityList.slice();
+                }
+                if($scope.config.fazConnectorHealth && $scope.config.fazConnectorHealth.status !== 'Available'){
+                    toaster.error({
+                        body: `Check health of default configuration.`
+                    });
+                    $scope.toggleSelectConfiguration.open = true;
+                    return;
                 }
                 WizardHandler.wizard('OutbreaksolutionpackWizard').next();
             } else {
