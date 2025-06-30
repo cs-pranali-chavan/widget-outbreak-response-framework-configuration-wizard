@@ -61,6 +61,8 @@
         $scope.config.connectorType = 'Self';
         $scope.allConfigurations = [];
         const nistConnectorName = 'NIST National Vulnerability Database';
+        const skipHealthCheckForConnectors = [nistConnectorName , 'Fortinet FortiAnalyzer'];
+
         $scope.ingestionDetails = {
             "name": "Outbreak-Alerts",
             "playbook_uuid": "70d2c10e-50d4-43ce-b606-0f0d0d305fad"
@@ -201,18 +203,19 @@
                 'name': fazConnector.name,
                 'version': fazConnector.version
             }
-            let agentId;
             if ($scope.config.connectorType === 'Agent'){
-                agentId = $scope.config.selectedConfig.agent;
-            }
-            connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id, agentId).then(function (connectorHealth) {
-                $scope.config.fazConnectorHealth = connectorHealth;
-            }, function (error) {
-                console.log(error);
-                return;
-            }).finally(function () {
+                $scope.config.fazConnectorHealth = {'status' : $scope.config.selectedConfig.health_status.status};
                 $scope.healthCheckProcessing = false;
-            })
+            } else {
+                connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id).then(function (connectorHealth) {
+                    $scope.config.fazConnectorHealth = connectorHealth;
+                }, function (error) {
+                    console.log(error);
+                    return;
+                }).finally(function () {
+                    $scope.healthCheckProcessing = false;
+                })
+            }
         }
 
         function _activeErrorTab(tabName, tabIndex) {
@@ -498,7 +501,7 @@
         function _checkConnectorHealth() {
             $scope.isConnectorsHealthy = true;
             const invalidConnectorLabels = _.chain($scope.installedConnectors)
-                .filter(c => !(c.healthStatus && c.defaultConfig) && c.label !== nistConnectorName)
+                .filter(c => !(c.healthStatus && c.defaultConfig) && !skipHealthCheckForConnectors.includes(c.label))
                 .map('label')
                 .value();
             if (_.isEmpty(invalidConnectorLabels)) {
