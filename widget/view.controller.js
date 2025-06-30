@@ -203,13 +203,11 @@
                 'name': fazConnector.name,
                 'version': fazConnector.version
             }
-            let agentId;
             if ($scope.config.connectorType === 'Agent'){
-                agentId = $scope.config.selectedConfig.agent;
                 $scope.config.fazConnectorHealth = {'status' : $scope.config.selectedConfig.health_status.status};
                 $scope.healthCheckProcessing = false;
             } else {
-                connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id, agentId).then(function (connectorHealth) {
+                connectorService.getConnectorHealth(connectorMetaData, $scope.config.selectedConfig.config_id).then(function (connectorHealth) {
                     $scope.config.fazConnectorHealth = connectorHealth;
                 }, function (error) {
                     console.log(error);
